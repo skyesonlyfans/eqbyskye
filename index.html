@@ -53,6 +53,30 @@
             box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
         }
 
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 50;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            transform: translateY(20px) scale(0.95);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: translateY(0) scale(1);
+        }
+
         select {
             appearance: none;
             background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
@@ -61,20 +85,57 @@
             background-size: 0.65rem auto;
         }
 
-        /* Custom Scrollbar for dropdown if needed */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #1a1a1a; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #555; }
         
-        .title-glow {
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
-        }
+        .title-glow { text-shadow: 0 0 20px rgba(255, 255, 255, 0.2); }
     </style>
 </head>
 <body>
 
     <canvas id="canvas"></canvas>
+
+    <!-- Scripts Modal -->
+    <div id="scripts-modal" class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content glass-panel p-6 w-full max-w-md interactive flex flex-col gap-4">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-xl font-semibold">Plugin Scripts</h2>
+                <button id="close-modal-btn" class="text-gray-400 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            
+            <p class="text-sm text-gray-400">Load interactive scripts that react to touch and the microphone. Try interacting with the canvas once loaded!</p>
+
+            <div class="flex flex-col gap-2 mt-2">
+                <button onclick="loadBuiltInScript(1)" class="w-full text-left px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors flex justify-between items-center">
+                    <span>1. Neon Ripples</span>
+                    <span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded">Interactive</span>
+                </button>
+                <button onclick="loadBuiltInScript(2)" class="w-full text-left px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors flex justify-between items-center">
+                    <span>2. Freq Swarm</span>
+                    <span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded">Interactive</span>
+                </button>
+                <button onclick="loadBuiltInScript(3)" class="w-full text-left px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors flex justify-between items-center">
+                    <span>3. Audio Strings</span>
+                    <span class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded">Interactive</span>
+                </button>
+            </div>
+
+            <div class="relative flex py-2 items-center">
+                <div class="flex-grow border-t border-white/10"></div>
+                <span class="flex-shrink-0 mx-4 text-white/30 text-xs uppercase tracking-widest">or</span>
+                <div class="flex-grow border-t border-white/10"></div>
+            </div>
+
+            <label class="w-full cursor-pointer bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 px-4 rounded-lg transition-colors text-center shadow-lg shadow-indigo-500/20">
+                Upload Custom Script (.js)
+                <input type="file" id="custom-script-upload" accept=".js" class="hidden">
+            </label>
+        </div>
+    </div>
 
     <div id="ui-layer">
         <!-- Header -->
@@ -86,15 +147,13 @@
         </header>
 
         <!-- Controls / Footer -->
-        <div class="w-full max-w-md mx-auto interactive">
-            <div class="glass-panel p-4 flex flex-col sm:flex-row gap-4 items-center transition-all duration-300">
+        <div class="w-full max-w-lg mx-auto interactive">
+            <div class="glass-panel p-4 flex flex-col sm:flex-row gap-3 items-center transition-all duration-300">
                 
-                <button id="mic-btn" class="flex-shrink-0 w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center transition-colors shadow-lg shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-gray-900">
-                    <!-- Mic Icon -->
+                <button id="mic-btn" class="flex-shrink-0 w-14 h-14 rounded-full bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center transition-colors shadow-lg shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-indigo-400">
                     <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                     </svg>
-                    <!-- Stop Icon (Hidden by default) -->
                     <svg id="stop-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
@@ -103,7 +162,7 @@
 
                 <div class="flex-grow w-full relative">
                     <label for="style-select" class="sr-only">Visualizer Style</label>
-                    <select id="style-select" class="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-3 px-4 transition-colors outline-none cursor-pointer">
+                    <select id="style-select" class="w-full bg-white/5 border border-white/10 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-3 px-4 outline-none cursor-pointer">
                         <option value="original" class="bg-gray-900 text-white">Original (Classic Bars)</option>
                         <option value="waveform" class="bg-gray-900 text-white">Waveform (Oscilloscope)</option>
                         <option value="radial" class="bg-gray-900 text-white">Radial (Circular)</option>
@@ -111,9 +170,15 @@
                         <option value="nebula" class="bg-gray-900 text-white">Nebula (Particles)</option>
                     </select>
                 </div>
+
+                <!-- Scripts Button -->
+                <button id="open-scripts-btn" class="flex-shrink-0 w-12 h-12 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400" title="Load Custom Scripts">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                </button>
             </div>
 
-            <!-- Error Message Container -->
             <div id="error-container" class="hidden mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm text-center">
                 Microphone access denied. Please allow microphone permissions to use the visualizer.
             </div>
@@ -134,21 +199,67 @@
         let animationId = null;
         let currentStyle = 'original';
 
+        // --- Interaction Tracking (Touch & Mouse) ---
+        let pointerX = window.innerWidth / 2;
+        let pointerY = window.innerHeight / 2;
+        let isPointerDown = false;
+
+        window.addEventListener('pointermove', (e) => {
+            pointerX = e.clientX;
+            pointerY = e.clientY;
+        });
+        window.addEventListener('pointerdown', (e) => {
+            isPointerDown = true;
+            pointerX = e.clientX;
+            pointerY = e.clientY;
+        });
+        window.addEventListener('pointerup', () => {
+            isPointerDown = false;
+        });
+
+        // --- Plugin API System ---
+        window.CustomVisualizers = {};
+        window.registerVisualizer = function(id, name, drawFn, initFn) {
+            window.CustomVisualizers[id] = { name, draw: drawFn, init: initFn };
+            
+            // Add option to dropdown if it doesn't exist
+            const select = document.getElementById('style-select');
+            if (!select.querySelector(`option[value="${id}"]`)) {
+                const option = document.createElement('option');
+                option.value = id;
+                option.className = 'bg-gray-900 text-indigo-300';
+                option.textContent = `⚡ ${name}`;
+                select.appendChild(option);
+            }
+            
+            // Switch to it immediately
+            select.value = id;
+            currentStyle = id;
+            if(initFn) initFn();
+            
+            // Force clear screen
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        };
+
         // --- DOM Elements ---
         const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for no transparency on base
+        const ctx = canvas.getContext('2d', { alpha: false });
         const micBtn = document.getElementById('mic-btn');
         const micIcon = document.getElementById('mic-icon');
         const stopIcon = document.getElementById('stop-icon');
         const styleSelect = document.getElementById('style-select');
         const statusText = document.getElementById('status-text');
         const errorContainer = document.getElementById('error-container');
+        
+        const scriptsModal = document.getElementById('scripts-modal');
+        const openScriptsBtn = document.getElementById('open-scripts-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const scriptUpload = document.getElementById('custom-script-upload');
 
-        // --- Particles Array (for Nebula style) ---
+        // --- Standard Visualizer Variables ---
         let particles = [];
         const numParticles = 150;
-        
-        // --- Sparks Array (for bass hits in Nebula) ---
         let sparks = [];
 
         // --- Initialization ---
@@ -156,11 +267,10 @@
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
             initParticles();
-            drawIdle(); // Start with an idle animation
+            drawIdle();
         }
 
         function resizeCanvas() {
-            // Handle high DPI displays for sharp rendering
             const dpr = window.devicePixelRatio || 1;
             canvas.width = window.innerWidth * dpr;
             canvas.height = window.innerHeight * dpr;
@@ -169,7 +279,7 @@
 
         function initParticles() {
             particles = [];
-            sparks = []; // reset sparks on init
+            sparks = [];
             for (let i = 0; i < numParticles; i++) {
                 particles.push({
                     x: Math.random() * window.innerWidth,
@@ -177,7 +287,7 @@
                     size: Math.random() * 3 + 1,
                     speedX: (Math.random() - 0.5) * 1,
                     speedY: (Math.random() - 0.5) * 1,
-                    baseColor: `hsl(${Math.random() * 60 + 200}, 80%, 60%)` // Blues and Purples
+                    baseColor: `hsl(${Math.random() * 60 + 200}, 80%, 60%)`
                 });
             }
         }
@@ -197,22 +307,15 @@
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                 microphoneStream = stream;
 
-                // Initialize Audio Context (requires user gesture, which we have here via button click)
-                if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                }
-
-                if (audioCtx.state === 'suspended') {
-                    await audioCtx.resume();
-                }
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') await audioCtx.resume();
 
                 analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 2048; // Higher FFT size for better frequency resolution
+                analyser.fftSize = 2048;
                 analyser.smoothingTimeConstant = 0.85;
 
                 sourceNode = audioCtx.createMediaStreamSource(stream);
                 sourceNode.connect(analyser);
-                // Deliberately NOT connecting to audioCtx.destination to avoid feedback
 
                 frequencyData = new Uint8Array(analyser.frequencyBinCount);
                 timeDomainData = new Uint8Array(analyser.fftSize);
@@ -220,28 +323,21 @@
                 isRecording = true;
                 updateUIState();
                 
-                // Stop idle animation and start visualizer loop
                 if(animationId) cancelAnimationFrame(animationId);
                 drawLoop();
-
             } catch (err) {
                 console.error('Error accessing microphone:', err);
                 errorContainer.classList.remove('hidden');
-                errorContainer.textContent = "Microphone access denied or unavailable. Please check permissions.";
+                errorContainer.textContent = "Microphone access denied. Please check permissions.";
             }
         }
 
         function stopMicrophone() {
-            if (microphoneStream) {
-                microphoneStream.getTracks().forEach(track => track.stop());
-            }
-            if (sourceNode) {
-                sourceNode.disconnect();
-            }
+            if (microphoneStream) microphoneStream.getTracks().forEach(track => track.stop());
+            if (sourceNode) sourceNode.disconnect();
+            
             isRecording = false;
             updateUIState();
-            
-            // Revert to idle animation
             if(animationId) cancelAnimationFrame(animationId);
             drawIdle();
         }
@@ -265,18 +361,14 @@
         }
 
         // --- Rendering Logic ---
-        
-        // Helper to draw background
         function clearCanvas(alpha = 1) {
             ctx.fillStyle = `rgba(10, 10, 10, ${alpha})`;
             ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
         }
 
-        // Idle animation when mic is off
         let idlePhase = 0;
         function drawIdle() {
-            clearCanvas(0.2); // slight trail
-            
+            clearCanvas(0.2); 
             const w = window.innerWidth;
             const h = window.innerHeight;
             
@@ -294,164 +386,115 @@
             animationId = requestAnimationFrame(drawIdle);
         }
 
-        // Main Animation Loop
         function drawLoop() {
             animationId = requestAnimationFrame(drawLoop);
 
-            // Get audio data
             analyser.getByteFrequencyData(frequencyData);
             analyser.getByteTimeDomainData(timeDomainData);
 
             const w = window.innerWidth;
             const h = window.innerHeight;
 
-            // Route to selected style
+            // Check if current style is a Custom Plugin
+            if (window.CustomVisualizers[currentStyle]) {
+                const plugin = window.CustomVisualizers[currentStyle];
+                ctx.save(); // Protect global canvas state
+                try {
+                    plugin.draw(ctx, w, h, frequencyData, timeDomainData, pointerX, pointerY, isPointerDown);
+                } catch(e) {
+                    console.error("Plugin Error:", e);
+                }
+                ctx.restore();
+                return;
+            }
+
+            // Standard Styles
             switch (currentStyle) {
-                case 'original':
-                    drawStyleOriginal(w, h);
-                    break;
-                case 'waveform':
-                    drawStyleWaveform(w, h);
-                    break;
-                case 'radial':
-                    drawStyleRadial(w, h);
-                    break;
-                case 'symmetry':
-                    drawStyleSymmetry(w, h);
-                    break;
-                case 'nebula':
-                    drawStyleNebula(w, h);
-                    break;
+                case 'original': drawStyleOriginal(w, h); break;
+                case 'waveform': drawStyleWaveform(w, h); break;
+                case 'radial': drawStyleRadial(w, h); break;
+                case 'symmetry': drawStyleSymmetry(w, h); break;
+                case 'nebula': drawStyleNebula(w, h); break;
             }
         }
 
-        // --- Visualizer Styles ---
+        // --- Standard Visualizer Styles ---
 
-        // 1. Original (Classic Bars)
         function drawStyleOriginal(w, h) {
             clearCanvas(1);
-            
-            const bufferLength = analyser.frequencyBinCount;
-            // Use only the lower half of frequencies (where most music lives)
-            const activeBins = Math.floor(bufferLength * 0.5); 
-            
-            // Calculate bar properties dynamically based on screen width
+            const activeBins = Math.floor(analyser.frequencyBinCount * 0.5); 
             const barSpacing = 2;
             const maxBarWidth = 12;
-            const idealBars = Math.floor(w / (maxBarWidth + barSpacing));
-            const numBars = Math.min(idealBars, activeBins);
+            const numBars = Math.min(Math.floor(w / (maxBarWidth + barSpacing)), activeBins);
             const barWidth = (w / numBars) - barSpacing;
-            
-            // Group frequencies to fit the number of bars
             const step = Math.floor(activeBins / numBars);
 
             let x = 0;
-
             for (let i = 0; i < numBars; i++) {
                 let sum = 0;
-                for(let j = 0; j < step; j++) {
-                    sum += frequencyData[(i * step) + j];
-                }
+                for(let j = 0; j < step; j++) sum += frequencyData[(i * step) + j];
                 const average = sum / step;
-                
-                // Map frequency value to height (0-255 -> 0-h)
                 const barHeight = (average / 255) * (h * 0.7);
 
-                // Create Gradient
                 const gradient = ctx.createLinearGradient(0, h, 0, h - barHeight);
-                gradient.addColorStop(0, '#4338ca'); // indigo-700
-                gradient.addColorStop(0.5, '#8b5cf6'); // violet-500
-                gradient.addColorStop(1, '#38bdf8'); // sky-400
+                gradient.addColorStop(0, '#4338ca');
+                gradient.addColorStop(0.5, '#8b5cf6');
+                gradient.addColorStop(1, '#38bdf8');
 
                 ctx.fillStyle = gradient;
-                
-                // Draw rounded top rectangle
                 ctx.beginPath();
                 ctx.roundRect(x, h - barHeight, barWidth, barHeight, [4, 4, 0, 0]);
                 ctx.fill();
-
                 x += barWidth + barSpacing;
             }
         }
 
-        // 2. Waveform (Oscilloscope)
         function drawStyleWaveform(w, h) {
-            // Apply slight motion blur
             clearCanvas(0.2); 
-            
             const bufferLength = analyser.fftSize;
             
             ctx.lineWidth = 3;
-            ctx.strokeStyle = '#818cf8'; // indigo-400
+            ctx.strokeStyle = '#818cf8';
             ctx.shadowBlur = 10;
             ctx.shadowColor = '#4f46e5';
             ctx.beginPath();
 
             const sliceWidth = w * 1.0 / bufferLength;
             let x = 0;
-
             for (let i = 0; i < bufferLength; i++) {
-                const v = timeDomainData[i] / 128.0; // 0 to 2
-                const y = v * h / 2;
-
-                if (i === 0) {
-                    ctx.moveTo(x, y);
-                } else {
-                    ctx.lineTo(x, y);
-                }
-
+                const y = (timeDomainData[i] / 128.0) * h / 2;
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
                 x += sliceWidth;
             }
-
             ctx.lineTo(w, h / 2);
             ctx.stroke();
-            
-            // Reset shadow
             ctx.shadowBlur = 0;
         }
 
-        // 3. Radial (Circular)
         function drawStyleRadial(w, h) {
             clearCanvas(0.5);
-
-            const bufferLength = analyser.frequencyBinCount;
-            const activeBins = Math.floor(bufferLength * 0.4); 
             const numBars = 120;
-            const step = Math.floor(activeBins / numBars);
-            
+            const step = Math.floor(Math.floor(analyser.frequencyBinCount * 0.4) / numBars);
             const centerX = w / 2;
             const centerY = h / 2;
-            const radius = Math.min(w, h) * 0.15; // Base radius
+            const radius = Math.min(w, h) * 0.15;
 
             for (let i = 0; i < numBars; i++) {
                 let sum = 0;
-                for(let j = 0; j < step; j++) {
-                    sum += frequencyData[(i * step) + j];
-                }
-                const average = sum / step;
-                
-                const barHeight = (average / 255) * (Math.min(w, h) * 0.3);
-                
+                for(let j = 0; j < step; j++) sum += frequencyData[(i * step) + j];
+                const barHeight = ((sum / step) / 255) * (Math.min(w, h) * 0.3);
                 const rads = (i * (Math.PI * 2)) / numBars;
                 
-                const x1 = centerX + Math.cos(rads) * radius;
-                const y1 = centerY + Math.sin(rads) * radius;
-                
-                const x2 = centerX + Math.cos(rads) * (radius + barHeight);
-                const y2 = centerY + Math.sin(rads) * (radius + barHeight);
-
-                // Hue based on position around circle
                 ctx.strokeStyle = `hsl(${(i / numBars) * 360}, 80%, 60%)`;
                 ctx.lineWidth = 4;
                 ctx.lineCap = 'round';
-                
                 ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
+                ctx.moveTo(centerX + Math.cos(rads) * radius, centerY + Math.sin(rads) * radius);
+                ctx.lineTo(centerX + Math.cos(rads) * (radius + barHeight), centerY + Math.sin(rads) * (radius + barHeight));
                 ctx.stroke();
             }
             
-            // Draw central pulse
             const bassSum = frequencyData.slice(0, 10).reduce((a, b) => a + b, 0) / 10;
             const pulseRadius = radius + (bassSum / 255) * 20;
             
@@ -467,148 +510,260 @@
             ctx.stroke();
         }
 
-        // 4. Symmetry (Mirrored)
         function drawStyleSymmetry(w, h) {
             clearCanvas(1);
-            
-            const bufferLength = analyser.frequencyBinCount;
-            const activeBins = Math.floor(bufferLength * 0.5); 
-            
             const numBars = 64;
-            const step = Math.floor(activeBins / numBars);
+            const step = Math.floor(Math.floor(analyser.frequencyBinCount * 0.5) / numBars);
             const barWidth = w / (numBars * 2);
-            
             const centerY = h / 2;
 
             for (let i = 0; i < numBars; i++) {
                 let sum = 0;
-                for(let j = 0; j < step; j++) {
-                    sum += frequencyData[(i * step) + j];
-                }
+                for(let j = 0; j < step; j++) sum += frequencyData[(i * step) + j];
                 const average = sum / step;
                 const barHeight = (average / 255) * (h * 0.4);
 
                 ctx.fillStyle = `hsl(${220 + (average / 255) * 100}, 90%, 60%)`;
-
-                // Draw Right side
-                const rightX = (w / 2) + (i * barWidth);
-                ctx.fillRect(rightX, centerY - barHeight, barWidth - 1, barHeight * 2);
-
-                // Draw Left side (Mirrored)
-                const leftX = (w / 2) - ((i + 1) * barWidth);
-                ctx.fillRect(leftX, centerY - barHeight, barWidth - 1, barHeight * 2);
+                ctx.fillRect((w / 2) + (i * barWidth), centerY - barHeight, barWidth - 1, barHeight * 2);
+                ctx.fillRect((w / 2) - ((i + 1) * barWidth), centerY - barHeight, barWidth - 1, barHeight * 2);
             }
         }
 
-        // 5. Nebula (Particles with Sparks)
         function drawStyleNebula(w, h) {
-            clearCanvas(0.15); // High motion blur
-
-            // Calculate overall volume (average of all frequencies)
+            clearCanvas(0.15); 
+            
             let totalVolume = 0;
-            for (let i = 0; i < analyser.frequencyBinCount; i++) {
-                totalVolume += frequencyData[i];
-            }
-            const avgVolume = totalVolume / analyser.frequencyBinCount;
-            const volumeNormalized = avgVolume / 255; // 0 to 1
+            for (let i = 0; i < analyser.frequencyBinCount; i++) totalVolume += frequencyData[i];
+            const volumeNormalized = (totalVolume / analyser.frequencyBinCount) / 255; 
 
-            // Bass volume (lower frequencies)
             let bassVolume = 0;
-            for (let i = 0; i < 10; i++) {
-                bassVolume += frequencyData[i];
-            }
-            const avgBass = bassVolume / 10;
-            const bassNormalized = avgBass / 255;
+            for (let i = 0; i < 10; i++) bassVolume += frequencyData[i];
+            const bassNormalized = (bassVolume / 10) / 255;
 
-            // Generate sparks on heavy bass hits
             if (bassNormalized > 0.7) {
-                // Determine how many sparks based on bass intensity
                 let sparkCount = Math.floor(Math.random() * 3) + 1; 
                 for (let i = 0; i < sparkCount; i++) {
-                    // Pick a random existing particle to serve as the emission point
                     let p = particles[Math.floor(Math.random() * particles.length)];
                     sparks.push({
-                        x: p.x,
-                        y: p.y,
-                        vx: (Math.random() - 0.5) * 20, // Explosive velocity
-                        vy: (Math.random() - 0.5) * 20,
-                        life: 1.0,
-                        decay: 0.02 + Math.random() * 0.06, // Fast decay
-                        size: Math.random() * 2 + 0.5,
-                        color: `hsl(${Math.random() * 50 + 10}, 100%, 75%)` // Fire colors: reds, oranges, yellows
+                        x: p.x, y: p.y,
+                        vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 0.5) * 20,
+                        life: 1.0, decay: 0.02 + Math.random() * 0.06, size: Math.random() * 2 + 0.5,
+                        color: `hsl(${Math.random() * 50 + 10}, 100%, 75%)`
                     });
                 }
             }
 
-            // Draw primary nebula particles
             particles.forEach((p, i) => {
-                // Link particle size to its specific frequency bin
                 const freqBin = Math.floor((i / numParticles) * (analyser.frequencyBinCount * 0.5));
                 const freqVal = frequencyData[freqBin] / 255;
                 
-                // Move particles (speed increases with volume)
                 p.x += p.speedX * (1 + volumeNormalized * 5);
                 p.y += p.speedY * (1 + volumeNormalized * 5);
-
-                // Wrap around edges
-                if (p.x < 0) p.x = w;
-                if (p.x > w) p.x = 0;
-                if (p.y < 0) p.y = h;
-                if (p.y > h) p.y = 0;
-
-                const currentSize = p.size + (freqVal * 15) + (bassNormalized * 5);
+                if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+                if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
 
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, currentSize, 0, Math.PI * 2);
-                
-                // Make colors pop more on loud sounds
-                const lightness = 50 + (freqVal * 30);
-                ctx.fillStyle = p.baseColor.replace('60%)', `${lightness}%)`);
-                
+                ctx.arc(p.x, p.y, p.size + (freqVal * 15) + (bassNormalized * 5), 0, Math.PI * 2);
+                ctx.fillStyle = p.baseColor.replace('60%)', `${50 + (freqVal * 30)}%)`);
                 ctx.shadowBlur = freqVal * 20;
                 ctx.shadowColor = ctx.fillStyle;
-                
                 ctx.fill();
             });
 
-            // Update and draw sparks over the nebula
             for (let i = sparks.length - 1; i >= 0; i--) {
                 let s = sparks[i];
-                s.x += s.vx;
-                s.y += s.vy;
-                s.life -= s.decay;
-
-                // Remove dead sparks
-                if (s.life <= 0) {
-                    sparks.splice(i, 1);
-                    continue;
-                }
+                s.x += s.vx; s.y += s.vy; s.life -= s.decay;
+                if (s.life <= 0) { sparks.splice(i, 1); continue; }
 
                 ctx.beginPath();
                 ctx.arc(s.x, s.y, s.size * s.life, 0, Math.PI * 2);
                 ctx.fillStyle = s.color;
                 ctx.shadowBlur = 15;
                 ctx.shadowColor = s.color;
-                ctx.globalAlpha = s.life; // Fade out as it dies
+                ctx.globalAlpha = s.life;
                 ctx.fill();
             }
-            
-            // Reset global properties so they don't affect other things
             ctx.globalAlpha = 1.0; 
             ctx.shadowBlur = 0; 
         }
+
+        // --- Custom Script Loading Mechanics ---
+
+        function injectScript(codeString) {
+            const blob = new Blob([codeString], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            const script = document.createElement('script');
+            script.src = url;
+            document.head.appendChild(script);
+        }
+
+        // 3 Built-in Preview Scripts (Stored as strings so they function identically to uploaded files)
+        const PREVIEW_SCRIPTS = {
+            1: `
+                let ripples = [];
+                window.registerVisualizer('plugin-ripples', 'Neon Ripples', (ctx, w, h, freq, time, px, py, isDown) => {
+                    ctx.fillStyle = 'rgba(10,10,10,0.2)';
+                    ctx.fillRect(0, 0, w, h);
+                    
+                    let bass = 0;
+                    for(let i=0; i<10; i++) bass += freq[i];
+                    bass /= 10;
+                    
+                    // Spawn ripples on touch/click
+                    if (isDown && Math.random() > 0.8) {
+                        ripples.push({
+                            x: px, y: py, radius: 0, 
+                            maxRadius: (bass * 2) + 100, 
+                            color: \`hsl(\${bass + 180}, 100%, 60%)\`
+                        });
+                    }
+                    
+                    for(let i=ripples.length-1; i>=0; i--) {
+                        let r = ripples[i];
+                        r.radius += 2 + (bass/50);
+                        
+                        ctx.beginPath();
+                        ctx.arc(r.x, r.y, r.radius, 0, Math.PI*2);
+                        ctx.strokeStyle = r.color;
+                        ctx.globalAlpha = Math.max(0, 1 - (r.radius / r.maxRadius));
+                        ctx.lineWidth = 3 + (bass/50);
+                        ctx.stroke();
+                        
+                        if (r.radius >= r.maxRadius) ripples.splice(i, 1);
+                    }
+                    ctx.globalAlpha = 1; // Reset
+                });
+            `,
+            2: `
+                let swarm = [];
+                window.registerVisualizer('plugin-swarm', 'Freq Swarm', (ctx, w, h, freq, time, px, py, isDown) => {
+                    ctx.fillStyle = 'rgba(10,10,10,0.3)';
+                    ctx.fillRect(0, 0, w, h);
+                    
+                    if(swarm.length === 0) {
+                        for(let i=0; i<150; i++) {
+                            swarm.push({
+                                x: w/2, y: h/2, 
+                                angle: Math.random()*Math.PI*2, 
+                                dist: Math.random()*300 + 50, 
+                                id: i
+                            });
+                        }
+                    }
+                    
+                    let vol = freq.reduce((a,b)=>a+b,0) / freq.length;
+                    
+                    swarm.forEach(p => {
+                        let pFreq = freq[p.id % Math.floor(freq.length/2)]; // Use lower half of freq
+                        p.angle += 0.01 + (pFreq/8000);
+                        
+                        // Pull towards touch/mouse if down, else gently orbit center
+                        let anchorX = isDown ? px : w/2;
+                        let anchorY = isDown ? py : h/2;
+                        
+                        let targetX = anchorX + Math.cos(p.angle) * (p.dist + (vol*2));
+                        let targetY = anchorY + Math.sin(p.angle) * (p.dist + (vol*2));
+                        
+                        p.x += (targetX - p.x) * 0.1;
+                        p.y += (targetY - p.y) * 0.1;
+                        
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, (pFreq/40) + 2, 0, Math.PI*2);
+                        ctx.fillStyle = \`hsl(\${pFreq + p.dist}, 80%, 60%)\`;
+                        ctx.fill();
+                    });
+                });
+            `,
+            3: `
+                let pathHistory = [];
+                window.registerVisualizer('plugin-strings', 'Audio Strings', (ctx, w, h, freq, time, px, py, isDown) => {
+                    ctx.fillStyle = 'rgba(10,10,10,0.15)';
+                    ctx.fillRect(0, 0, w, h);
+                    
+                    // Track drawing
+                    if (isDown) {
+                        pathHistory.push({x: px, y: py});
+                        if (pathHistory.length > 80) pathHistory.shift();
+                    } else if (pathHistory.length > 0) {
+                        pathHistory.shift(); // fade out tail slowly when released
+                    }
+                    
+                    if (pathHistory.length < 2) return;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(pathHistory[0].x, pathHistory[0].y);
+                    
+                    for(let i=1; i<pathHistory.length; i++) {
+                        // Modulate position by waveform
+                        let waveVal = time[i % time.length];
+                        let waveOffset = (waveVal - 128) * (isDown ? 0.8 : 0.2);
+                        
+                        let nx = pathHistory[i].x + waveOffset;
+                        let ny = pathHistory[i].y + waveOffset;
+                        ctx.lineTo(nx, ny);
+                    }
+                    
+                    let vol = freq[10] || 0;
+                    ctx.strokeStyle = \`hsl(\${(Date.now()/15) % 360}, 100%, \${50 + (vol/5)}%)\`;
+                    ctx.lineWidth = (vol/20) + 3;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    // Add glow
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = ctx.strokeStyle;
+                    
+                    ctx.stroke();
+                    ctx.shadowBlur = 0; // reset
+                });
+            `
+        };
+
+        window.loadBuiltInScript = function(id) {
+            injectScript(PREVIEW_SCRIPTS[id]);
+            closeModal();
+            // Ensure mic starts if they load an interactive script
+            if (!isRecording) toggleMicrophone();
+        };
 
         // --- Event Listeners ---
         micBtn.addEventListener('click', toggleMicrophone);
         
         styleSelect.addEventListener('change', (e) => {
             currentStyle = e.target.value;
-            // Force a clean clear to prevent artifacts when switching styles
             ctx.fillStyle = '#0a0a0a';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
 
-        // Initialize setup on load
+        openScriptsBtn.addEventListener('click', () => {
+            scriptsModal.classList.add('active');
+        });
+
+        function closeModal() {
+            scriptsModal.classList.remove('active');
+        }
+
+        closeModalBtn.addEventListener('click', closeModal);
+        scriptsModal.addEventListener('click', (e) => {
+            if (e.target === scriptsModal) closeModal();
+        });
+
+        // Handle Custom JS File Uploads
+        scriptUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                injectScript(ev.target.result);
+                closeModal();
+                // Reset file input so the same file can be uploaded again if edited
+                scriptUpload.value = ''; 
+            };
+            reader.readAsText(file);
+        });
+
+        // Start
         window.addEventListener('load', initCanvas);
 
     </script>
